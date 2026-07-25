@@ -2,6 +2,10 @@
 
 {% block title %}{{ brand }} — Sign-Off{% endblock %}
 
+{# Strip Frappe website Home navbar / header / footer chrome #}
+{% block navbar %}{% endblock %}
+{% block banner %}{% endblock %}
+
 {% block head_include %}
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="theme-color" content="#d60000">
@@ -11,6 +15,34 @@
 <meta name="apple-mobile-web-app-title" content="PG Sign-Off">
 <link rel="apple-touch-icon" href="/assets/pg_job_signoff/icons/icon-192.svg">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>
+  /* Hide leftover website chrome on /signoff (Home button, breadcrumbs, footer) */
+  body[data-path*="signoff"] .navbar,
+  body[data-path*="signoff"] .navbar-main,
+  body[data-path*="signoff"] .web-footer,
+  body[data-path*="signoff"] .breadcrumb,
+  body[data-path*="signoff"] .page-header-wrapper,
+  body[data-path*="signoff"] .page-breadcrumbs,
+  .pg-signoff-page .navbar,
+  .pg-signoff-page .navbar-main,
+  .pg-signoff-page .web-footer,
+  .pg-signoff-page .breadcrumb,
+  .pg-signoff-page .page-header-wrapper,
+  .pg-signoff-page .page-breadcrumbs {
+    display: none !important;
+  }
+  .pg-signoff-page,
+  body[data-path*="signoff"] {
+    padding-top: 0 !important;
+  }
+  .pg-signoff-page .main-section,
+  body[data-path*="signoff"] .main-section,
+  .pg-signoff-page .page_content,
+  body[data-path*="signoff"] .page_content {
+    padding-top: 0 !important;
+    margin-top: 0 !important;
+  }
+</style>
 {% endblock %}
 
 {% block page_content %}
@@ -65,7 +97,11 @@
 </div>
 
 <script>
+  document.documentElement.classList.add("pg-signoff-page");
+  document.body && document.body.classList.add("pg-signoff-page");
   window.__PG_SIGNOFF_BOOT__ = {{ boot_json | safe }};
 </script>
 <script src="/assets/pg_job_signoff/js/signoff_page.js"></script>
 {% endblock %}
+
+{% block footer %}{% endblock %}

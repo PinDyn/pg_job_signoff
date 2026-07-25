@@ -14,6 +14,10 @@ def get_context(context):
 	context.brand = "PG Aluminium"
 	context.no_cache = 1
 	context.title = _("Job Sign-Off")
+	# Hide Frappe website chrome (Home navbar / header) — PWA shell only
+	context.no_header = 1
+	context.no_breadcrumbs = 1
+	context.show_sidebar = 0
 	context.pwa = True
 	context.manifest_url = "/manifest.webmanifest"
 	context.sw_url = "/pg-signoff-sw.js"
