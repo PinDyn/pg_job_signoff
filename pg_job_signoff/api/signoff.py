@@ -210,14 +210,30 @@ def _load_token_or_throw(token: str):
 
 
 def _public_summary(jc) -> dict[str, Any]:
+	"""Read-only job header fields — mirrors the Job Completion print form."""
+	meta = frappe.get_meta(jc.doctype)
+
+	def first(*names: str):
+		for name in names:
+			if meta.has_field(name):
+				val = jc.get(name)
+				if val not in (None, ""):
+					return val
+		return None
+
 	return {
 		"name": jc.name,
 		"status": jc.status,
 		"customer_name": jc.customer_name or jc.customer,
-		"installation_address": jc.installation_address,
-		"date_installed": jc.date_installed,
-		"external_quote_ref": jc.external_quote_ref,
 		"contact_number": jc.contact_number,
+		"email_address": first("email_address"),
+		"installation_address": jc.installation_address,
+		"external_quote_ref": jc.external_quote_ref,
+		"date_installed": jc.date_installed,
+		"technician_name": first("technician_name"),
+		"sales_consultant": first("sales_consultant", "sales_rep", "sales_name"),
+		"installation_team": first("installation_team", "installer"),
+		"return_visit_date": first("return_visit_date", "snag_date"),
 	}
 
 

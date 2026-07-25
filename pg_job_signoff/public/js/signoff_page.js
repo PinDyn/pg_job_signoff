@@ -186,34 +186,101 @@
       "</p></section>";
   }
 
+  function infoRow(label, value) {
+    if (value === null || value === undefined || value === "") return "";
+    return (
+      '<div class="pg-info-row"><dt>' +
+      escapeHtml(label) +
+      "</dt><dd>" +
+      escapeHtml(value) +
+      "</dd></div>"
+    );
+  }
+
+  function formatDate(value) {
+    if (!value) return "";
+    const raw = String(value);
+    // Keep YYYY-MM-DD readable; leave datetimes as returned
+    if (/^\d{4}-\d{2}-\d{2}/.test(raw)) {
+      try {
+        const d = new Date(raw);
+        if (!isNaN(d.getTime())) {
+          return d.toLocaleDateString("en-ZA", {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+          });
+        }
+      } catch (e) {}
+    }
+    return raw;
+  }
+
+  function renderSummary(summary, signed) {
+    let html = '<div class="pg-signoff__doc-title">';
+    html +=
+      "<h1>" +
+      escapeHtml(summary.customer_name || summary.name || "Job sign-off") +
+      "</h1>";
+    html +=
+      "<p>" +
+      escapeHtml(role === "technician" ? "Technician sign-off" : "Client sign-off") +
+      (summary.name ? " · " + escapeHtml(summary.name) : "") +
+      "</p></div>";
+
+    html += '<div class="pg-signoff__summary"><dl>';
+    html += infoRow("Job number", summary.name);
+    html += infoRow("Status", summary.status);
+    html += infoRow("Client name", summary.customer_name);
+    html += infoRow("Contact number", summary.contact_number);
+    html += infoRow("Email address", summary.email_address);
+    html += infoRow("Installation address", summary.installation_address);
+    html += infoRow("Quote number", summary.external_quote_ref);
+    html += infoRow("Installation date", formatDate(summary.date_installed));
+    html += infoRow("Technician", summary.technician_name);
+    html += infoRow("Sales consultant", summary.sales_consultant);
+    html += infoRow("Installation team", summary.installation_team);
+    html += infoRow("Return visit date", formatDate(summary.return_visit_date));
+    html += "</dl>";
+
+    const techDone = !!(signed && signed.technician);
+    const clientDone = !!(signed && signed.client);
+    html += '<div class="pg-signoff__progress" aria-label="Sign-off progress">';
+    html +=
+      '<span class="pg-sign-badge' +
+      (techDone ? " pg-sign-badge--done" : "") +
+      '">' +
+      (techDone ? "✓ " : "") +
+      "Technician</span>";
+    html +=
+      '<span class="pg-sign-badge' +
+      (clientDone ? " pg-sign-badge--done" : "") +
+      '">' +
+      (clientDone ? "✓ " : "") +
+      "Client</span>";
+    html += "</div></div>";
+    return html;
+  }
+
   function renderForm() {
     if (!payload) return;
     role = payload.role;
     const summary = payload.summary || {};
+    const signed = payload.already_signed || {};
+
+    const rolePill = $("#role-pill");
+    if (rolePill) {
+      rolePill.hidden = false;
+      rolePill.textContent = role === "technician" ? "Technician" : "Client";
+    }
+    const statusPill = $("#status-pill");
+    if (statusPill && summary.status) {
+      statusPill.hidden = false;
+      statusPill.textContent = summary.status;
+    }
+
     let html = '<section class="pg-signoff__card pg-anim-in" id="pg-signoff-app">';
-    html += '<div class="pg-signoff__summary">';
-    html += "<h1>" + escapeHtml(summary.customer_name || summary.name) + "</h1><dl>";
-    html +=
-      "<div><dt>Job</dt><dd>" + escapeHtml(summary.name) + "</dd></div>";
-    if (summary.installation_address) {
-      html +=
-        "<div><dt>Address</dt><dd>" +
-        escapeHtml(summary.installation_address) +
-        "</dd></div>";
-    }
-    if (summary.external_quote_ref) {
-      html +=
-        "<div><dt>Quote</dt><dd>" +
-        escapeHtml(summary.external_quote_ref) +
-        "</dd></div>";
-    }
-    if (summary.date_installed) {
-      html +=
-        "<div><dt>Installed</dt><dd>" +
-        escapeHtml(summary.date_installed) +
-        "</dd></div>";
-    }
-    html += "</dl></div>";
+    html += renderSummary(summary, signed);
 
     if (role === "client") {
       const checks = payload.checklist_summary || [];
@@ -273,7 +340,12 @@
             ">";
           html += "<span><strong>" + escapeHtml(snag.description || "Snag") + "</strong>";
           if (snag.location) html += "<em>" + escapeHtml(snag.location) + "</em>";
-          html += "<small>Status: " + escapeHtml(snag.status || "Open") + "</small></span></label>";
+          html += "<small>Status: " + escapeHtml(snag.status || "Open");
+          if (snag.priority) html += " · Priority: " + escapeHtml(snag.priority);
+          if (snag.target_completion) {
+            html += " · Target: " + escapeHtml(formatDate(snag.target_completion));
+          }
+          html += "</small></span></label>";
           html +=
             '<div class="pg-photo-row"><label class="pg-photo-btn">Add photo<input type="file" accept="image/*" capture="environment" data-snag-photo="' +
             escapeHtml(snag.name) +
@@ -312,21 +384,36 @@
     if (!canvas) return;
     ctx = canvas.getContext("2d");
     const ratio = Math.max(window.devicePixelRatio || 1, 1);
-    const width = canvas.clientWidth || 600;
-    const height = Math.round(width * 0.4);
-    canvas.width = width * ratio;
-    canvas.height = height * ratio;
+    const wrap = canvas.parentElement;
+    const cssWidth = Math.max(
+      1,
+      Math.floor((wrap && wrap.clientWidth) || canvas.clientWidth || 300)
+    );
+    const cssHeight = Math.max(160, Math.round(cssWidth * 0.42));
+
+    // Keep CSS box and bitmap in lockstep — avoids stretch / offset on mobile DPR
+    canvas.style.width = cssWidth + "px";
+    canvas.style.height = cssHeight + "px";
+    canvas.width = Math.floor(cssWidth * ratio);
+    canvas.height = Math.floor(cssHeight * ratio);
+
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
     ctx.lineWidth = 2.4;
     ctx.lineCap = "round";
-    ctx.strokeStyle = "#1a3a5c";
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = "#111111";
     hasInk = false;
   }
 
   function pointerPos(e) {
     const rect = canvas.getBoundingClientRect();
-    const point = e.touches ? e.touches[0] : e;
-    return { x: point.clientX - rect.left, y: point.clientY - rect.top };
+    const point = e.touches && e.touches.length ? e.touches[0] : e;
+    const dpr = Math.max(window.devicePixelRatio || 1, 1);
+    // Convert display pixels → CSS drawing space used with setTransform(dpr)
+    return {
+      x: ((point.clientX - rect.left) * canvas.width) / Math.max(rect.width, 1) / dpr,
+      y: ((point.clientY - rect.top) * canvas.height) / Math.max(rect.height, 1) / dpr,
+    };
   }
 
   function bindSignature() {
@@ -348,7 +435,7 @@
     }
     function end(e) {
       drawing = false;
-      e.preventDefault();
+      if (e) e.preventDefault();
     }
     canvas.addEventListener("mousedown", start);
     canvas.addEventListener("mousemove", move);
@@ -357,8 +444,13 @@
     canvas.addEventListener("touchstart", start, { passive: false });
     canvas.addEventListener("touchmove", move, { passive: false });
     canvas.addEventListener("touchend", end);
+    canvas.addEventListener("touchcancel", end);
     $("#btn-clear-sig").addEventListener("click", resizeCanvas);
     window.addEventListener("resize", resizeCanvas);
+    // Re-measure after fonts/layout settle (fixes first-paint width=0 races)
+    requestAnimationFrame(function () {
+      requestAnimationFrame(resizeCanvas);
+    });
   }
 
   function bindPhotos() {
@@ -441,7 +533,7 @@
       }
       submitBtn.disabled = true;
       statusMsg.textContent = navigator.onLine ? "Submitting…" : "Saving offline…";
-      statusMsg.style.color = "#6b7280";
+      statusMsg.style.color = "#555555";
 
       const doSubmit = function () {
         return apiCall("pg_job_signoff.api.signoff.submit_signoff", {

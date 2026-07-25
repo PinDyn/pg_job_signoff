@@ -4,7 +4,7 @@
 
 {% block head_include %}
 <link rel="manifest" href="/manifest.webmanifest">
-<meta name="theme-color" content="#1a3a5c">
+<meta name="theme-color" content="#d60000">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -23,13 +23,22 @@
      data-error="{{ (error or '') | e }}"
      data-role="{{ (role or '') | e }}">
 
-  <div class="pg-signoff__ambient" aria-hidden="true"></div>
-
   <header class="pg-signoff__header pg-anim-in">
-    <div class="pg-signoff__brand">{{ brand }}</div>
-    <div class="pg-signoff__subtitle">Installation Sign-Off</div>
+    <div class="pg-signoff__brand-row">
+      <img class="pg-signoff__logo"
+           src="https://pg-aluminium.pindynerp.com/files/pg_aluminium_print_logo.png"
+           alt="PG Aluminium"
+           width="120"
+           height="84">
+      <div class="pg-signoff__brand-text">
+        <div class="pg-signoff__brand">PG Aluminium</div>
+        <div class="pg-signoff__subtitle">Project Completion &amp; Client Handover</div>
+      </div>
+    </div>
     <div class="pg-signoff__status-row">
       <span class="pg-pill" id="net-pill">Online</span>
+      <span class="pg-pill pg-pill--role" id="role-pill" hidden></span>
+      <span class="pg-pill pg-pill--status" id="status-pill" hidden></span>
       <button type="button" class="pg-btn pg-btn--ghost pg-btn--sm" id="btn-install" hidden>Install app</button>
     </div>
   </header>
@@ -47,6 +56,12 @@
     </section>
     {% endif %}
   </div>
+
+  <footer class="pg-signoff__footer">
+    MG Holdings (Pty) Ltd · PG Aluminium Jhb &amp; Tshwane<br>
+    <a href="tel:+27100239067">010 023 9067</a>
+    · 338 Alwyn Street, Watloo, Pretoria
+  </footer>
 </div>
 
 <script>
