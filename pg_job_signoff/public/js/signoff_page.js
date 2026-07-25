@@ -15,10 +15,9 @@
   let payload = boot.payload || null;
   let role = boot.role || (payload && payload.role) || "";
   let deferredInstall = null;
-  let hasInk = false;
-  let drawing = false;
   let snagPhotos = {}; // snagName -> dataURL
-  let canvas, ctx;
+  let canvas = null;
+  let signaturePad = null;
 
   function $(sel, el) {
     return (el || document).querySelector(sel);
@@ -379,136 +378,74 @@
     bindForm();
   }
 
-  function resizeCanvas(force) {
+  function resizeCanvas() {
     canvas = $("#sig-pad");
-    if (!canvas) return;
-    ctx = canvas.getContext("2d");
+    if (!canvas || !signaturePad) return;
 
-    // Width follows the pad; height from measured width (no min-height stretch)
-    canvas.style.width = "100%";
-    canvas.style.height = "auto";
-    const measuredW = Math.max(
-      1,
-      canvas.getBoundingClientRect().width ||
-        (canvas.parentElement && canvas.parentElement.clientWidth) ||
-        300
-    );
-    const cssHeight = Math.max(168, Math.round(measuredW * 0.45));
-    canvas.style.height = cssHeight + "px";
+    // signature_pad docs: size from offsetWidth/Height, then scale context by DPR
+    const ratio = Math.max(window.devicePixelRatio || 1, 1);
+    const width = Math.max(1, Math.floor(canvas.offsetWidth || canvas.parentElement.clientWidth || 300));
+    const height = Math.max(1, Math.floor(canvas.offsetHeight || 200));
 
-    // Bitmap must match the *painted* box (subpixels / mobile chrome), not assumptions
-    const rect = canvas.getBoundingClientRect();
-    const dpr = Math.max(window.devicePixelRatio || 1, 1);
-    const bw = Math.max(1, Math.round(rect.width * dpr));
-    const bh = Math.max(1, Math.round(rect.height * dpr));
-
-    // Ignore tiny URL-bar resizes in portrait unless clearing / size really changed
-    if (
-      !force &&
-      canvas.width === bw &&
-      canvas.height === bh &&
-      Math.abs((canvas._pgCssW || 0) - rect.width) < 0.5
-    ) {
-      return;
-    }
-    canvas._pgCssW = rect.width;
-    canvas._pgDpr = dpr;
-
-    canvas.width = bw;
-    canvas.height = bh;
-    // Draw in device pixels — one coordinate space only (avoids portrait DPR drift)
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.lineWidth = 2.4 * dpr;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.strokeStyle = "#111111";
-    hasInk = false;
-  }
-
-  function pointerPos(e) {
-    const rect = canvas.getBoundingClientRect();
-    const point =
-      (e.touches && e.touches[0]) ||
-      (e.changedTouches && e.changedTouches[0]) ||
-      e;
-    // Map viewport point → bitmap pixels (no setTransform / DPR double-bookkeeping)
-    return {
-      x: ((point.clientX - rect.left) * canvas.width) / Math.max(rect.width, 1),
-      y: ((point.clientY - rect.top) * canvas.height) / Math.max(rect.height, 1),
-    };
+    canvas.width = width * ratio;
+    canvas.height = height * ratio;
+    canvas.getContext("2d").setTransform(ratio, 0, 0, ratio, 0, 0);
+    signaturePad.clear();
   }
 
   function bindSignature() {
-    resizeCanvas(true);
-    drawing = false;
+    canvas = $("#sig-pad");
+    if (!canvas) return;
 
-    function start(e) {
-      if (e.pointerType === "mouse" && e.button !== 0) return;
-      drawing = true;
-      try {
-        if (e.pointerId != null) canvas.setPointerCapture(e.pointerId);
-      } catch (err) {}
-      const p = pointerPos(e);
-      ctx.beginPath();
-      ctx.moveTo(p.x, p.y);
-      e.preventDefault();
-    }
-    function move(e) {
-      if (!drawing) return;
-      const p = pointerPos(e);
-      ctx.lineTo(p.x, p.y);
-      ctx.stroke();
-      hasInk = true;
-      e.preventDefault();
-    }
-    function end(e) {
-      if (!drawing) return;
-      drawing = false;
-      try {
-        if (e && e.pointerId != null) canvas.releasePointerCapture(e.pointerId);
-      } catch (err) {}
-      if (e) e.preventDefault();
+    if (typeof window.SignaturePad === "undefined") {
+      console.error("SignaturePad library missing");
+      return;
     }
 
-    // Pointer Events unify mouse/touch/pen and supply reliable offsetX/Y
-    canvas.style.touchAction = "none";
-    canvas.addEventListener("pointerdown", start);
-    canvas.addEventListener("pointermove", move);
-    canvas.addEventListener("pointerup", end);
-    canvas.addEventListener("pointercancel", end);
-    canvas.addEventListener("pointerleave", function (e) {
-      if (drawing && e.pointerType === "mouse") end(e);
+    if (signaturePad) {
+      signaturePad.off();
+      signaturePad = null;
+    }
+
+    signaturePad = new window.SignaturePad(canvas, {
+      minWidth: 0.8,
+      maxWidth: 2.6,
+      penColor: "#111111",
+      backgroundColor: "rgb(255, 255, 255)",
+      throttle: 8,
     });
 
+    // Android Chrome PointerEvents often mis-map coords when the page is scrolled
+    // (common in portrait). Force classic touch + mouse handlers instead.
+    if (/Android|Mobile|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+      signaturePad.off();
+      signaturePad._drawingStroke = false;
+      signaturePad._handleMouseEvents();
+      if ("ontouchstart" in window) {
+        signaturePad._handleTouchEvents();
+      }
+    }
+
+    resizeCanvas();
+
     $("#btn-clear-sig").addEventListener("click", function () {
-      resizeCanvas(true);
+      if (signaturePad) signaturePad.clear();
     });
 
     let resizeTimer = null;
     function scheduleResize() {
       clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(function () {
-        resizeCanvas(false);
-      }, 120);
+      resizeTimer = setTimeout(resizeCanvas, 150);
     }
     window.addEventListener("resize", scheduleResize);
     window.addEventListener("orientationchange", function () {
-      setTimeout(function () {
-        resizeCanvas(true);
-      }, 250);
+      setTimeout(resizeCanvas, 300);
     });
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener("resize", scheduleResize);
-      window.visualViewport.addEventListener("scroll", scheduleResize);
-    }
     if (typeof ResizeObserver !== "undefined" && canvas.parentElement) {
-      const ro = new ResizeObserver(scheduleResize);
-      ro.observe(canvas.parentElement);
+      new ResizeObserver(scheduleResize).observe(canvas.parentElement);
     }
     requestAnimationFrame(function () {
-      requestAnimationFrame(function () {
-        resizeCanvas(true);
-      });
+      requestAnimationFrame(resizeCanvas);
     });
   }
 
@@ -552,13 +489,14 @@
 
   function gatherPayload() {
     const data = {};
+    const signature = signaturePad ? signaturePad.toDataURL("image/png") : "";
     if (role === "client") {
       data.client_name = ($("#client_name").value || "").trim();
       data.sign_off_comments = $("#sign_off_comments").value || "";
-      data.client_signature = canvas.toDataURL("image/png");
+      data.client_signature = signature;
     } else {
       data.technician_name = $("#technician_name").value || "";
-      data.technician_signature = canvas.toDataURL("image/png");
+      data.technician_signature = signature;
       const resolved = [];
       document.querySelectorAll('#snag-list input[type="checkbox"]:checked').forEach(function (box) {
         resolved.push(box.getAttribute("data-snag-name"));
@@ -570,7 +508,7 @@
   }
 
   function validate(data) {
-    if (!hasInk) return "Please provide a signature.";
+    if (!signaturePad || signaturePad.isEmpty()) return "Please provide a signature.";
     if (role === "client" && !data.client_name) return "Please enter your name.";
     if (role === "technician" && !data.technician_name) return "Please select technician name.";
     return null;
