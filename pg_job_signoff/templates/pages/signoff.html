@@ -1,0 +1,62 @@
+{% extends "templates/web.html" %}
+
+{% block title %}{{ brand }} — Sign-Off{% endblock %}
+
+{% block head_include %}
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#1a3a5c">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="PG Sign-Off">
+<link rel="apple-touch-icon" href="/assets/pg_job_signoff/icons/icon-192.svg">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+{% endblock %}
+
+{% block page_content %}
+<link rel="stylesheet" href="/assets/pg_job_signoff/css/signoff.css">
+
+<div class="pg-signoff" id="pg-root"
+     data-token="{{ token | e }}"
+     data-brand="{{ brand | e }}"
+     data-has-error="{% if error %}1{% else %}0{% endif %}"
+     data-error="{{ (error or '') | e }}"
+     data-role="{{ (role or '') | e }}">
+
+  <div class="pg-signoff__ambient" aria-hidden="true"></div>
+
+  <header class="pg-signoff__header pg-anim-in">
+    <div class="pg-signoff__brand">{{ brand }}</div>
+    <div class="pg-signoff__subtitle">Installation Sign-Off</div>
+    <div class="pg-signoff__status-row">
+      <span class="pg-pill" id="net-pill">Online</span>
+      <button type="button" class="pg-btn pg-btn--ghost pg-btn--sm" id="btn-install" hidden>Install app</button>
+    </div>
+  </header>
+
+  <div id="pg-mount">
+    {% if error %}
+    <section class="pg-signoff__card pg-signoff__error pg-anim-in">
+      <h1>Unable to open sign-off</h1>
+      <p>{{ error }}</p>
+    </section>
+    {% else %}
+    <section class="pg-signoff__card pg-anim-in" id="pg-loading">
+      <div class="pg-loader"></div>
+      <p class="pg-signoff__muted">Loading job…</p>
+    </section>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+  window.__PG_SIGNOFF_BOOT__ = {{ frappe.as_json({
+      "token": token,
+      "brand": brand,
+      "error": error,
+      "role": role,
+      "payload": payload
+    }) }};
+</script>
+<script src="/assets/pg_job_signoff/js/signoff_page.js"></script>
+{% endblock %}

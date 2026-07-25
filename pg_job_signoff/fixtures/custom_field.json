@@ -1,0 +1,44 @@
+[
+  {
+    "doctype": "Custom Field",
+    "dt": "Job Completion",
+    "fieldname": "custom_technician_signoff_short_link",
+    "fieldtype": "Data",
+    "label": "Technician Sign-Off Short Link",
+    "insert_after": "status",
+    "options": "URL",
+    "read_only": 1,
+    "name": "Job Completion-custom_technician_signoff_short_link"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Job Completion",
+    "fieldname": "custom_client_signoff_short_link",
+    "fieldtype": "Data",
+    "label": "Client Sign-Off Short Link",
+    "insert_after": "custom_technician_signoff_short_link",
+    "options": "URL",
+    "read_only": 1,
+    "name": "Job Completion-custom_client_signoff_short_link"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Job Completion",
+    "fieldname": "custom_technician_signed_on",
+    "fieldtype": "Datetime",
+    "label": "Technician Signed On",
+    "insert_after": "technician_signature",
+    "read_only": 1,
+    "name": "Job Completion-custom_technician_signed_on"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Job Completion",
+    "fieldname": "custom_client_signed_on",
+    "fieldtype": "Datetime",
+    "label": "Client Signed On",
+    "insert_after": "client_signature",
+    "read_only": 1,
+    "name": "Job Completion-custom_client_signed_on"
+  }
+]

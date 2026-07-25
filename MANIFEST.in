@@ -1,0 +1,5 @@
+recursive-include pg_job_signoff *
+recursive-include pg_job_signoff/templates *
+recursive-include pg_job_signoff/public *
+recursive-include pg_job_signoff/fixtures *
+recursive-include pg_job_signoff/www *

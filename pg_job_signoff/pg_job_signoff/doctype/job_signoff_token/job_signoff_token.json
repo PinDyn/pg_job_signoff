@@ -1,0 +1,184 @@
+{
+  "actions": [],
+  "allow_rename": 0,
+  "autoname": "hash",
+  "creation": "2026-07-25 12:00:00.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "job_completion",
+    "role",
+    "column_break_1",
+    "status",
+    "token",
+    "section_break_links",
+    "tinyurl",
+    "short_link",
+    "long_link",
+    "section_break_limits",
+    "expires_on",
+    "max_uses",
+    "column_break_2",
+    "use_count",
+    "signed_on",
+    "last_used_on"
+  ],
+  "fields": [
+    {
+      "fieldname": "job_completion",
+      "fieldtype": "Link",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "Job Completion",
+      "options": "Job Completion",
+      "reqd": 1
+    },
+    {
+      "fieldname": "role",
+      "fieldtype": "Select",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "Role",
+      "options": "technician\nclient",
+      "reqd": 1
+    },
+    {
+      "fieldname": "column_break_1",
+      "fieldtype": "Column Break"
+    },
+    {
+      "default": "Active",
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "in_list_view": 1,
+      "label": "Status",
+      "options": "Active\nUsed\nExpired\nRevoked",
+      "reqd": 1
+    },
+    {
+      "fieldname": "token",
+      "fieldtype": "Data",
+      "label": "Token",
+      "no_copy": 1,
+      "read_only": 1,
+      "reqd": 1,
+      "unique": 1
+    },
+    {
+      "fieldname": "section_break_links",
+      "fieldtype": "Section Break",
+      "label": "Links"
+    },
+    {
+      "fieldname": "tinyurl",
+      "fieldtype": "Link",
+      "label": "TinyURL",
+      "options": "TinyURL",
+      "read_only": 1
+    },
+    {
+      "fieldname": "short_link",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "Short Link",
+      "options": "URL",
+      "read_only": 1
+    },
+    {
+      "fieldname": "long_link",
+      "fieldtype": "Small Text",
+      "label": "Long Link",
+      "read_only": 1
+    },
+    {
+      "fieldname": "section_break_limits",
+      "fieldtype": "Section Break",
+      "label": "Limits"
+    },
+    {
+      "fieldname": "expires_on",
+      "fieldtype": "Datetime",
+      "label": "Expires On",
+      "reqd": 1
+    },
+    {
+      "default": "5",
+      "fieldname": "max_uses",
+      "fieldtype": "Int",
+      "label": "Max Uses"
+    },
+    {
+      "fieldname": "column_break_2",
+      "fieldtype": "Column Break"
+    },
+    {
+      "default": "0",
+      "fieldname": "use_count",
+      "fieldtype": "Int",
+      "label": "Use Count",
+      "read_only": 1
+    },
+    {
+      "fieldname": "signed_on",
+      "fieldtype": "Datetime",
+      "label": "Signed On",
+      "read_only": 1
+    },
+    {
+      "fieldname": "last_used_on",
+      "fieldtype": "Datetime",
+      "label": "Last Used On",
+      "read_only": 1
+    }
+  ],
+  "index_web_pages_for_search": 0,
+  "links": [],
+  "modified": "2026-07-25 12:00:00.000000",
+  "modified_by": "Administrator",
+  "module": "PG Job Signoff",
+  "name": "Job Signoff Token",
+  "naming_rule": "Random",
+  "owner": "Administrator",
+  "permissions": [
+    {
+      "create": 1,
+      "delete": 1,
+      "email": 1,
+      "export": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "System Manager",
+      "share": 1,
+      "write": 1
+    },
+    {
+      "create": 1,
+      "delete": 0,
+      "email": 0,
+      "export": 0,
+      "print": 0,
+      "read": 1,
+      "report": 0,
+      "role": "Sales Manager",
+      "share": 0,
+      "write": 1
+    },
+    {
+      "create": 1,
+      "delete": 0,
+      "email": 0,
+      "export": 0,
+      "print": 0,
+      "read": 1,
+      "report": 0,
+      "role": "Sales User",
+      "share": 0,
+      "write": 1
+    }
+  ],
+  "sort_field": "modified",
+  "sort_order": "DESC",
+  "states": [],
+  "track_changes": 1
+}
