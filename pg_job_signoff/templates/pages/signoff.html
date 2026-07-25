@@ -50,13 +50,7 @@
 </div>
 
 <script>
-  window.__PG_SIGNOFF_BOOT__ = {{ frappe.as_json({
-      "token": token,
-      "brand": brand,
-      "error": error,
-      "role": role,
-      "payload": payload
-    }) }};
+  window.__PG_SIGNOFF_BOOT__ = {{ boot_json | safe }};
 </script>
 <script src="/assets/pg_job_signoff/js/signoff_page.js"></script>
 {% endblock %}

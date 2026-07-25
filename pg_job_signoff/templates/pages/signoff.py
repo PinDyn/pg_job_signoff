@@ -25,18 +25,28 @@ def get_context(context):
 
 	if not token:
 		context.error = _("Missing sign-off token.")
-		return context
+	else:
+		try:
+			from pg_job_signoff.api.signoff import get_signoff_payload
 
-	try:
-		from pg_job_signoff.api.signoff import get_signoff_payload
+			payload = get_signoff_payload(token=token)
+			context.payload = payload
+			context.role = payload.get("role")
+		except Exception as e:
+			msg = str(e).strip()
+			if msg.startswith("ValidationError:") or "<" in msg:
+				msg = _("This sign-off link is invalid or expired.")
+			context.error = msg or _("This sign-off link is invalid or expired.")
 
-		payload = get_signoff_payload(token=token)
-		context.payload = payload
-		context.role = payload.get("role")
-	except Exception as e:
-		msg = str(e).strip()
-		if msg.startswith("ValidationError:") or "<" in msg:
-			msg = _("This sign-off link is invalid or expired.")
-		context.error = msg or _("This sign-off link is invalid or expired.")
+	# Serialize in Python — sandboxed Jinja cannot call frappe.as_json()
+	context.boot_json = frappe.as_json(
+		{
+			"token": context.token,
+			"brand": context.brand,
+			"error": context.error,
+			"role": context.role,
+			"payload": context.payload,
+		}
+	)
 
 	return context
