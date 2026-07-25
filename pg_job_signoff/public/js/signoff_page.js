@@ -379,26 +379,46 @@
     bindForm();
   }
 
-  function resizeCanvas() {
+  function resizeCanvas(force) {
     canvas = $("#sig-pad");
     if (!canvas) return;
     ctx = canvas.getContext("2d");
-    const ratio = Math.max(window.devicePixelRatio || 1, 1);
-    const wrap = canvas.parentElement;
-    const cssWidth = Math.max(
+
+    // Width follows the pad; height from measured width (no min-height stretch)
+    canvas.style.width = "100%";
+    canvas.style.height = "auto";
+    const measuredW = Math.max(
       1,
-      Math.floor((wrap && wrap.clientWidth) || canvas.clientWidth || 300)
+      canvas.getBoundingClientRect().width ||
+        (canvas.parentElement && canvas.parentElement.clientWidth) ||
+        300
     );
-    const cssHeight = Math.max(160, Math.round(cssWidth * 0.42));
-
-    // Keep CSS box and bitmap in lockstep — avoids stretch / offset on mobile DPR
-    canvas.style.width = cssWidth + "px";
+    const cssHeight = Math.max(168, Math.round(measuredW * 0.45));
     canvas.style.height = cssHeight + "px";
-    canvas.width = Math.floor(cssWidth * ratio);
-    canvas.height = Math.floor(cssHeight * ratio);
 
-    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-    ctx.lineWidth = 2.4;
+    // Bitmap must match the *painted* box (subpixels / mobile chrome), not assumptions
+    const rect = canvas.getBoundingClientRect();
+    const dpr = Math.max(window.devicePixelRatio || 1, 1);
+    const bw = Math.max(1, Math.round(rect.width * dpr));
+    const bh = Math.max(1, Math.round(rect.height * dpr));
+
+    // Ignore tiny URL-bar resizes in portrait unless clearing / size really changed
+    if (
+      !force &&
+      canvas.width === bw &&
+      canvas.height === bh &&
+      Math.abs((canvas._pgCssW || 0) - rect.width) < 0.5
+    ) {
+      return;
+    }
+    canvas._pgCssW = rect.width;
+    canvas._pgDpr = dpr;
+
+    canvas.width = bw;
+    canvas.height = bh;
+    // Draw in device pixels — one coordinate space only (avoids portrait DPR drift)
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.lineWidth = 2.4 * dpr;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     ctx.strokeStyle = "#111111";
@@ -407,19 +427,27 @@
 
   function pointerPos(e) {
     const rect = canvas.getBoundingClientRect();
-    const point = e.touches && e.touches.length ? e.touches[0] : e;
-    const dpr = Math.max(window.devicePixelRatio || 1, 1);
-    // Convert display pixels → CSS drawing space used with setTransform(dpr)
+    const point =
+      (e.touches && e.touches[0]) ||
+      (e.changedTouches && e.changedTouches[0]) ||
+      e;
+    // Map viewport point → bitmap pixels (no setTransform / DPR double-bookkeeping)
     return {
-      x: ((point.clientX - rect.left) * canvas.width) / Math.max(rect.width, 1) / dpr,
-      y: ((point.clientY - rect.top) * canvas.height) / Math.max(rect.height, 1) / dpr,
+      x: ((point.clientX - rect.left) * canvas.width) / Math.max(rect.width, 1),
+      y: ((point.clientY - rect.top) * canvas.height) / Math.max(rect.height, 1),
     };
   }
 
   function bindSignature() {
-    resizeCanvas();
+    resizeCanvas(true);
+    drawing = false;
+
     function start(e) {
+      if (e.pointerType === "mouse" && e.button !== 0) return;
       drawing = true;
+      try {
+        if (e.pointerId != null) canvas.setPointerCapture(e.pointerId);
+      } catch (err) {}
       const p = pointerPos(e);
       ctx.beginPath();
       ctx.moveTo(p.x, p.y);
@@ -434,22 +462,53 @@
       e.preventDefault();
     }
     function end(e) {
+      if (!drawing) return;
       drawing = false;
+      try {
+        if (e && e.pointerId != null) canvas.releasePointerCapture(e.pointerId);
+      } catch (err) {}
       if (e) e.preventDefault();
     }
-    canvas.addEventListener("mousedown", start);
-    canvas.addEventListener("mousemove", move);
-    canvas.addEventListener("mouseup", end);
-    canvas.addEventListener("mouseleave", end);
-    canvas.addEventListener("touchstart", start, { passive: false });
-    canvas.addEventListener("touchmove", move, { passive: false });
-    canvas.addEventListener("touchend", end);
-    canvas.addEventListener("touchcancel", end);
-    $("#btn-clear-sig").addEventListener("click", resizeCanvas);
-    window.addEventListener("resize", resizeCanvas);
-    // Re-measure after fonts/layout settle (fixes first-paint width=0 races)
+
+    // Pointer Events unify mouse/touch/pen and supply reliable offsetX/Y
+    canvas.style.touchAction = "none";
+    canvas.addEventListener("pointerdown", start);
+    canvas.addEventListener("pointermove", move);
+    canvas.addEventListener("pointerup", end);
+    canvas.addEventListener("pointercancel", end);
+    canvas.addEventListener("pointerleave", function (e) {
+      if (drawing && e.pointerType === "mouse") end(e);
+    });
+
+    $("#btn-clear-sig").addEventListener("click", function () {
+      resizeCanvas(true);
+    });
+
+    let resizeTimer = null;
+    function scheduleResize() {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(function () {
+        resizeCanvas(false);
+      }, 120);
+    }
+    window.addEventListener("resize", scheduleResize);
+    window.addEventListener("orientationchange", function () {
+      setTimeout(function () {
+        resizeCanvas(true);
+      }, 250);
+    });
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", scheduleResize);
+      window.visualViewport.addEventListener("scroll", scheduleResize);
+    }
+    if (typeof ResizeObserver !== "undefined" && canvas.parentElement) {
+      const ro = new ResizeObserver(scheduleResize);
+      ro.observe(canvas.parentElement);
+    }
     requestAnimationFrame(function () {
-      requestAnimationFrame(resizeCanvas);
+      requestAnimationFrame(function () {
+        resizeCanvas(true);
+      });
     });
   }
 
