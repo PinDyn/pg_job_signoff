@@ -64,7 +64,7 @@
            height="84">
       <div class="pg-signoff__brand-text">
         <div class="pg-signoff__brand">PG Aluminium</div>
-        <div class="pg-signoff__subtitle">Project Completion &amp; Client Handover</div>
+        <div class="pg-signoff__subtitle" id="form-subtitle">{% if payload and payload.title %}{{ payload.title }}{% else %}On-site form{% endif %}</div>
       </div>
     </div>
     <div class="pg-signoff__status-row">

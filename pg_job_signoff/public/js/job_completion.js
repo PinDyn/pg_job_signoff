@@ -2,7 +2,26 @@ frappe.ui.form.on("Job Completion", {
 	refresh(frm) {
 		if (frm.is_new()) return;
 
-		const can_link = frm.doc.status === "Awaiting Sign Off";
+		const forms = [
+			{
+				id: "handover",
+				label: __("Handover Link"),
+				field: "custom_handover_signoff_short_link",
+				statuses: ["Awaiting Sign Off"],
+			},
+			{
+				id: "site_completion",
+				label: __("Site Completion Link"),
+				field: "custom_site_completion_signoff_short_link",
+				statuses: ["Draft", "Inspection", "Snag List", "Awaiting Sign Off"],
+			},
+			{
+				id: "snag",
+				label: __("Snag Link"),
+				field: "custom_snag_signoff_short_link",
+				statuses: ["Draft", "Inspection", "Snag List", "Awaiting Sign Off"],
+			},
+		];
 
 		function copy_text(text) {
 			if (!text) {
@@ -18,155 +37,126 @@ frappe.ui.form.on("Job Completion", {
 			}
 		}
 
-		function generate(role, regenerate) {
+		function remember_link(form, short_link) {
+			if (short_link && frm.fields_dict[form.field]) {
+				frm.set_value(form.field, short_link);
+			}
+		}
+
+		function generate(form, regenerate) {
 			return frappe.call({
 				method: "pg_job_signoff.api.signoff.generate_signoff_link",
 				args: {
 					job_completion: frm.doc.name,
-					role: role,
+					form_type: form.id,
 					regenerate: regenerate ? 1 : 0,
 				},
 				freeze: true,
 				freeze_message: __("Creating short link…"),
 			}).then((r) => {
 				const msg = r.message || {};
-				const field =
-					role === "technician"
-						? "custom_technician_signoff_short_link"
-						: "custom_client_signoff_short_link";
-				if (frm.fields_dict[field]) {
-					frm.set_value(field, msg.short_link);
-				}
-				frappe.show_alert({
-					message: __("{0} short link ready", [role === "technician" ? "Technician" : "Client"]),
-					indicator: "green",
-				});
+				remember_link(form, msg.short_link);
 				return msg;
 			});
 		}
 
-		function send(role, channel) {
-			const recipient_field = channel === "email" ? "email_address" : "contact_number";
-			const default_to = frm.doc[recipient_field] || "";
+		function on_button(dialog, fieldname, fn) {
+			const control = dialog.fields_dict[fieldname];
+			if (!control) return;
+			const $btn = control.$input || (control.input && $(control.input));
+			if ($btn) $btn.on("click", fn);
+		}
 
-			const d = new frappe.ui.Dialog({
-				title: __("Send {0} sign-off ({1})", [
-					role === "technician" ? __("Technician") : __("Client"),
-					channel,
-				]),
-				fields: [
-					{
-						fieldname: "recipient",
-						fieldtype: "Data",
-						label: channel === "email" ? __("Email") : __("WhatsApp number"),
-						reqd: 1,
-						default: default_to,
-					},
-				],
-				primary_action_label: __("Send"),
-				primary_action(values) {
-					d.hide();
-					frappe
-						.call({
-							method: "pg_job_signoff.api.signoff.send_signoff_link",
-							args: {
-								job_completion: frm.doc.name,
-								role: role,
-								channel: channel,
-								recipient: values.recipient,
-							},
-							freeze: true,
-						})
-						.then(() => {
-							frappe.show_alert({
-								message: __("Sign-off link sent"),
-								indicator: "green",
-							});
-							frm.reload_doc();
-						});
-				},
+		function open_link(form) {
+			generate(form, 0).then((msg) => {
+				const dialog = new frappe.ui.Dialog({
+					title: form.label,
+					fields: [
+						{
+							fieldname: "short_link",
+							fieldtype: "Small Text",
+							label: __("Short link"),
+							read_only: 1,
+							default: msg.short_link || "",
+						},
+						{
+							fieldname: "copy",
+							fieldtype: "Button",
+							label: __("Copy link"),
+						},
+						{
+							fieldname: "recipient",
+							fieldtype: "Data",
+							label: __("Email or WhatsApp number"),
+							default: frm.doc.email_address || frm.doc.contact_number || "",
+						},
+						{
+							fieldname: "send_email",
+							fieldtype: "Button",
+							label: __("Send email"),
+						},
+						{
+							fieldname: "send_whatsapp",
+							fieldtype: "Button",
+							label: __("Send WhatsApp"),
+						},
+						{
+							fieldname: "regen",
+							fieldtype: "Button",
+							label: __("Regenerate link"),
+						},
+					],
+				});
+
+				function send(channel) {
+					const recipient = dialog.get_value("recipient");
+					if (!recipient) {
+						frappe.msgprint(__("Enter an email or WhatsApp number"));
+						return;
+					}
+					frappe.call({
+						method: "pg_job_signoff.api.signoff.send_signoff_link",
+						args: {
+							job_completion: frm.doc.name,
+							form_type: form.id,
+							channel: channel,
+							recipient: recipient,
+						},
+						freeze: true,
+						callback(r) {
+							if (!r.exc) {
+								const sent = (r.message || {}).short_link;
+								if (sent) dialog.set_value("short_link", sent);
+								remember_link(form, sent);
+								frappe.show_alert({ message: __("Link sent"), indicator: "green" });
+							}
+						},
+					});
+				}
+
+				dialog.show();
+				on_button(dialog, "copy", () => copy_text(dialog.get_value("short_link")));
+				on_button(dialog, "send_email", () => send("email"));
+				on_button(dialog, "send_whatsapp", () => send("whatsapp"));
+				on_button(dialog, "regen", () => {
+					generate(form, 1).then((fresh) => {
+						dialog.set_value("short_link", fresh.short_link || "");
+						frappe.show_alert({ message: __("New short link ready"), indicator: "green" });
+					});
+				});
 			});
-			d.show();
 		}
 
-		if (can_link) {
-			frm.add_custom_button(__("Generate Technician Link"), () => generate("technician", 0), __(
-				"Sign-Off Links"
-			));
-			frm.add_custom_button(__("Generate Client Link"), () => generate("client", 0), __(
-				"Sign-Off Links"
-			));
-			frm.add_custom_button(
-				__("Regenerate Technician Link"),
-				() => generate("technician", 1),
-				__("Sign-Off Links")
-			);
-			frm.add_custom_button(
-				__("Regenerate Client Link"),
-				() => generate("client", 1),
-				__("Sign-Off Links")
-			);
-
-			frm.add_custom_button(
-				__("Copy Technician Short Link"),
-				() => {
-					const existing = frm.doc.custom_technician_signoff_short_link;
-					if (existing) {
-						copy_text(existing);
-					} else {
-						generate("technician", 0).then((msg) => copy_text(msg.short_link));
-					}
-				},
-				__("Sign-Off Links")
-			);
-			frm.add_custom_button(
-				__("Copy Client Short Link"),
-				() => {
-					const existing = frm.doc.custom_client_signoff_short_link;
-					if (existing) {
-						copy_text(existing);
-					} else {
-						generate("client", 0).then((msg) => copy_text(msg.short_link));
-					}
-				},
-				__("Sign-Off Links")
-			);
-
-			frm.add_custom_button(
-				__("Email Technician Link"),
-				() => send("technician", "email"),
-				__("Sign-Off Links")
-			);
-			frm.add_custom_button(
-				__("Email Client Link"),
-				() => send("client", "email"),
-				__("Sign-Off Links")
-			);
-			frm.add_custom_button(
-				__("WhatsApp Technician Link"),
-				() => send("technician", "whatsapp"),
-				__("Sign-Off Links")
-			);
-			frm.add_custom_button(
-				__("WhatsApp Client Link"),
-				() => send("client", "whatsapp"),
-				__("Sign-Off Links")
-			);
-		} else if (frm.doc.custom_technician_signoff_short_link || frm.doc.custom_client_signoff_short_link) {
-			if (frm.doc.custom_technician_signoff_short_link) {
+		forms.forEach((form) => {
+			if (form.statuses.includes(frm.doc.status)) {
+				frm.add_custom_button(form.label, () => open_link(form), __("Sign-Off Links"));
+			} else if (frm.doc[form.field]) {
 				frm.add_custom_button(
-					__("Copy Technician Short Link"),
-					() => copy_text(frm.doc.custom_technician_signoff_short_link),
+					__("Copy {0}", [form.label]),
+					() => copy_text(frm.doc[form.field]),
 					__("Sign-Off Links")
 				);
 			}
-			if (frm.doc.custom_client_signoff_short_link) {
-				frm.add_custom_button(
-					__("Copy Client Short Link"),
-					() => copy_text(frm.doc.custom_client_signoff_short_link),
-					__("Sign-Off Links")
-				);
-			}
-		}
+		});
 	},
 });

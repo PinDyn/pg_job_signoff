@@ -27,6 +27,10 @@ fixtures = [
 					"Job Completion-custom_client_signoff_short_link",
 					"Job Completion-custom_technician_signed_on",
 					"Job Completion-custom_client_signed_on",
+					"Job Completion-custom_handover_signoff_short_link",
+					"Job Completion-custom_site_completion_signoff_short_link",
+					"Job Completion-custom_snag_signoff_short_link",
+					"Job Completion-custom_outstanding_works_completed",
 				],
 			]
 		],

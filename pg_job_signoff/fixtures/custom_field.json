@@ -40,5 +40,48 @@
     "insert_after": "client_signature",
     "read_only": 1,
     "name": "Job Completion-custom_client_signed_on"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Job Completion",
+    "fieldname": "custom_handover_signoff_short_link",
+    "fieldtype": "Data",
+    "label": "Handover Short Link",
+    "insert_after": "custom_client_signoff_short_link",
+    "options": "URL",
+    "read_only": 1,
+    "name": "Job Completion-custom_handover_signoff_short_link"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Job Completion",
+    "fieldname": "custom_site_completion_signoff_short_link",
+    "fieldtype": "Data",
+    "label": "Site Completion Short Link",
+    "insert_after": "custom_handover_signoff_short_link",
+    "options": "URL",
+    "read_only": 1,
+    "name": "Job Completion-custom_site_completion_signoff_short_link"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Job Completion",
+    "fieldname": "custom_snag_signoff_short_link",
+    "fieldtype": "Data",
+    "label": "Snag Short Link",
+    "insert_after": "custom_site_completion_signoff_short_link",
+    "options": "URL",
+    "read_only": 1,
+    "name": "Job Completion-custom_snag_signoff_short_link"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Job Completion",
+    "fieldname": "custom_outstanding_works_completed",
+    "fieldtype": "Select",
+    "label": "Outstanding works completed",
+    "insert_after": "qi_client_satisfied",
+    "options": "\nYes\nNo",
+    "name": "Job Completion-custom_outstanding_works_completed"
   }
 ]

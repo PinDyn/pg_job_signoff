@@ -38,8 +38,8 @@
       "fieldtype": "Select",
       "in_list_view": 1,
       "in_standard_filter": 1,
-      "label": "Role",
-      "options": "technician\nclient",
+      "label": "Link Type",
+      "options": "technician\nclient\nhandover\nsite_completion\nsnag",
       "reqd": 1
     },
     {

@@ -303,6 +303,8 @@
 }
 
 .pg-signoff__section input[type="text"],
+.pg-signoff__section input[type="date"],
+.pg-signoff__section input[type="number"],
 .pg-signoff__section select,
 .pg-signoff__section textarea {
   width: 100%;
@@ -426,6 +428,7 @@
   user-select: none;
 }
 
+.pg-sig-canvas,
 #sig-pad {
   display: block;
   position: absolute;
@@ -485,6 +488,79 @@
   margin-top: 0;
   padding: 0.3rem 0.6rem;
   font-size: 0.75rem;
+}
+
+.pg-signoff__section label.pg-yn-row,
+.pg-signoff__section label.pg-choice,
+.pg-signoff__section label.pg-field {
+  text-transform: none;
+  font-style: normal;
+  font-weight: 500;
+}
+
+.pg-signoff__section label.pg-yn-row {
+  display: grid;
+  grid-template-columns: 1fr 7.5rem;
+  gap: 0.55rem;
+  align-items: center;
+  margin: 0 0 0.45rem;
+}
+
+.pg-signoff__section label.pg-choice {
+  display: flex;
+  gap: 0.55rem;
+  align-items: flex-start;
+  margin: 0.25rem 0;
+}
+
+.pg-choice-grid {
+  display: grid;
+  gap: 0.2rem 1rem;
+}
+
+@media (min-width: 720px) {
+  .pg-choice-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.pg-field {
+  margin-bottom: 0.7rem;
+}
+
+.pg-field span,
+.pg-sig-block > label {
+  display: block;
+  margin-bottom: 0.3rem;
+}
+
+.pg-lines {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.pg-line {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid #e5e5e5;
+}
+
+.pg-note {
+  margin: 0;
+  background: #fafafa;
+  border-left: 3px solid var(--pg-red);
+  padding: 0.75rem;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.pg-sig-block {
+  margin-top: 1rem;
+}
+
+.pg-sig-block input[type="text"] {
+  margin-bottom: 0.45rem;
 }
 
 .pg-signoff__muted {

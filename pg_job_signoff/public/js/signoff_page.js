@@ -16,8 +16,7 @@
   let role = boot.role || (payload && payload.role) || "";
   let deferredInstall = null;
   let snagPhotos = {}; // snagName -> dataURL
-  let canvas = null;
-  let signaturePad = null;
+  let pads = {};
 
   function $(sel, el) {
     return (el || document).querySelector(sel);
@@ -157,8 +156,14 @@
       .catch(function () {});
   }
 
+  function textVal(value) {
+    if (value === 0) return "0";
+    if (value === null || value === undefined) return "";
+    return String(value);
+  }
+
   function escapeHtml(s) {
-    return String(s || "")
+    return textVal(s)
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
@@ -223,7 +228,7 @@
       "</h1>";
     html +=
       "<p>" +
-      escapeHtml(role === "technician" ? "Technician sign-off" : "Client sign-off") +
+      escapeHtml((payload && payload.title) || "Job sign-off") +
       (summary.name ? " · " + escapeHtml(summary.name) : "") +
       "</p></div>";
 
@@ -241,6 +246,11 @@
     html += infoRow("Installation team", summary.installation_team);
     html += infoRow("Return visit date", formatDate(summary.return_visit_date));
     html += "</dl>";
+
+    if (!signed) {
+      html += "</div>";
+      return html;
+    }
 
     const techDone = !!(signed && signed.technician);
     const clientDone = !!(signed && signed.client);
@@ -261,8 +271,246 @@
     return html;
   }
 
+  function setSubtitle() {
+    const subtitle = $("#form-subtitle");
+    if (subtitle && payload && payload.title) subtitle.textContent = payload.title;
+  }
+
+  function renderControl(field) {
+    const id = "f-" + field.fieldname;
+    const value = escapeHtml(textVal(field.value));
+    if (field.type === "textarea") {
+      return (
+        '<textarea id="' +
+        id +
+        '" data-field="' +
+        escapeHtml(field.fieldname) +
+        '" rows="3">' +
+        value +
+        "</textarea>"
+      );
+    }
+    if (field.type === "select") {
+      let html =
+        '<select id="' +
+        id +
+        '" data-field="' +
+        escapeHtml(field.fieldname) +
+        '"' +
+        (field.required ? " required" : "") +
+        "><option value=\"\">Select…</option>";
+      (field.options || []).forEach(function (opt) {
+        html +=
+          '<option value="' +
+          escapeHtml(opt) +
+          '"' +
+          (textVal(field.value) === String(opt) ? " selected" : "") +
+          ">" +
+          escapeHtml(opt) +
+          "</option>";
+      });
+      return html + "</select>";
+    }
+    const inputType = field.type === "date" ? "date" : field.type === "number" ? "number" : "text";
+    return (
+      '<input id="' +
+      id +
+      '" type="' +
+      inputType +
+      '" data-field="' +
+      escapeHtml(field.fieldname) +
+      '" value="' +
+      value +
+      '"' +
+      (inputType === "number" ? ' step="any" inputmode="decimal"' : "") +
+      (field.required ? " required" : "") +
+      ">"
+    );
+  }
+
+  function renderField(field) {
+    if (field.type === "check") {
+      return (
+        '<label class="pg-choice"><input type="checkbox" data-field="' +
+        escapeHtml(field.fieldname) +
+        '"' +
+        (field.value ? " checked" : "") +
+        "><span>" +
+        escapeHtml(field.label) +
+        "</span></label>"
+      );
+    }
+    if (field.type === "select" && field.layout === "row") {
+      return '<label class="pg-yn-row"><span>' + escapeHtml(field.label) + "</span>" + renderControl(field) + "</label>";
+    }
+    return (
+      '<div class="pg-field"><label for="f-' +
+      escapeHtml(field.fieldname) +
+      '">' +
+      escapeHtml(field.label) +
+      (field.required ? " *" : "") +
+      "</label>" +
+      renderControl(field) +
+      "</div>"
+    );
+  }
+
+  function renderLine(section, row) {
+    let html = '<div class="pg-line" data-line>';
+    (section.columns || []).forEach(function (col) {
+      const value = row ? textVal(row[col.fieldname]) : "";
+      html += '<label class="pg-field"><span>' + escapeHtml(col.label) + "</span>";
+      if (col.type === "select") {
+        html += '<select data-col="' + escapeHtml(col.fieldname) + '"><option value=""></option>';
+        (col.options || []).forEach(function (opt) {
+          html +=
+            '<option value="' +
+            escapeHtml(opt) +
+            '"' +
+            (value === String(opt) ? " selected" : "") +
+            ">" +
+            escapeHtml(opt) +
+            "</option>";
+        });
+        html += "</select>";
+      } else {
+        const inputType = col.type === "date" ? "date" : col.type === "number" ? "number" : "text";
+        html +=
+          '<input type="' +
+          inputType +
+          '" data-col="' +
+          escapeHtml(col.fieldname) +
+          '" value="' +
+          escapeHtml(value) +
+          '"' +
+          (inputType === "number" ? ' step="any"' : "") +
+          ">";
+      }
+      html += "</label>";
+    });
+    return html + "</div>";
+  }
+
+  function renderStructuredForm() {
+    setSubtitle();
+    role = payload.role;
+    const summary = payload.summary || {};
+    const rolePill = $("#role-pill");
+    if (rolePill) {
+      rolePill.hidden = false;
+      rolePill.textContent = payload.title || "Form";
+    }
+    const statusPill = $("#status-pill");
+    if (statusPill && summary.status) {
+      statusPill.hidden = false;
+      statusPill.textContent = summary.status;
+    }
+
+    let html = '<section class="pg-signoff__card pg-anim-in" id="pg-signoff-app">';
+    html += renderSummary(summary, null);
+    (payload.sections || []).forEach(function (section) {
+      if (section.type === "note") {
+        html +=
+          '<div class="pg-signoff__section"><h2>' +
+          escapeHtml(section.title || "") +
+          '</h2><p class="pg-note">' +
+          escapeHtml(section.text) +
+          "</p></div>";
+        return;
+      }
+      if (section.type === "lines") {
+        html +=
+          '<div class="pg-signoff__section"><h2>' +
+          escapeHtml(section.title || "") +
+          '</h2><div class="pg-lines" data-lines="' +
+          escapeHtml(section.fieldname) +
+          '">';
+        (section.rows || []).forEach(function (row) {
+          html += renderLine(section, row);
+        });
+        html +=
+          '</div><button type="button" class="pg-btn pg-btn--ghost" data-add-line="' +
+          escapeHtml(section.fieldname) +
+          '">Add line</button></div>';
+        return;
+      }
+      if (section.type === "signatures") {
+        html += '<div class="pg-signoff__section"><h2>' + escapeHtml(section.title || "Signatures") + "</h2>";
+        (section.pads || []).forEach(function (pad) {
+          html += '<div class="pg-sig-block">';
+          html +=
+            "<label>" + escapeHtml(pad.label) + (pad.required ? " *" : "") + "</label>";
+          html +=
+            '<input type="text" data-field="' +
+            escapeHtml(pad.name_field) +
+            '" value="' +
+            escapeHtml(pad.name_value || "") +
+            '" placeholder="Name" autocomplete="name">';
+          html +=
+            '<div class="pg-signoff__pad-wrap"><canvas class="pg-sig-canvas" id="sig-' +
+            escapeHtml(pad.fieldname) +
+            '" data-sig="' +
+            escapeHtml(pad.fieldname) +
+            '"></canvas></div>';
+          html +=
+            '<button type="button" class="pg-btn pg-btn--ghost" data-clear-sig="sig-' +
+            escapeHtml(pad.fieldname) +
+            '">Clear signature</button></div>';
+        });
+        html += "</div>";
+        return;
+      }
+      html += '<div class="pg-signoff__section"><h2>' + escapeHtml(section.title || "") + "</h2>";
+      if (section.layout === "grid") {
+        html += '<div class="pg-choice-grid">';
+        (section.fields || []).forEach(function (field) {
+          if (field.type === "check") html += renderField(field);
+        });
+        html += "</div>";
+        (section.fields || []).forEach(function (field) {
+          if (field.type !== "check") html += renderField(field);
+        });
+      } else {
+        (section.fields || []).forEach(function (field) {
+          html += renderField(field);
+        });
+      }
+      html += "</div>";
+    });
+    html +=
+      '<button type="button" class="pg-btn pg-btn--primary" id="btn-submit">Submit</button>' +
+      '<p class="pg-signoff__muted" id="status-msg"></p></section>';
+    mount.innerHTML = html;
+    bindAddLines();
+    bindForm();
+  }
+
+  function bindAddLines() {
+    document.querySelectorAll("[data-add-line]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        const name = btn.getAttribute("data-add-line");
+        const section = (payload.sections || []).filter(function (item) {
+          return item.fieldname === name;
+        })[0];
+        const host = document.querySelector('[data-lines="' + name + '"]');
+        if (!section || !host) return;
+        host.insertAdjacentHTML("beforeend", renderLine(section, {}));
+      });
+    });
+  }
+
   function renderForm() {
     if (!payload) return;
+    if (payload.form_type) {
+      renderStructuredForm();
+      return;
+    }
+    renderLegacyForm();
+  }
+
+  function renderLegacyForm() {
+    if (!payload) return;
+    setSubtitle();
     role = payload.role;
     const summary = payload.summary || {};
     const signed = payload.already_signed || {};
@@ -368,7 +616,7 @@
     }
 
     html +=
-      '<div class="pg-signoff__section"><label>Signature</label><div class="pg-signoff__pad-wrap"><canvas id="sig-pad"></canvas></div>' +
+      '<div class="pg-signoff__section"><label>Signature</label><div class="pg-signoff__pad-wrap"><canvas class="pg-sig-canvas" id="sig-pad"></canvas></div>' +
       '<button type="button" class="pg-btn pg-btn--ghost" id="btn-clear-sig">Clear signature</button></div>';
     html +=
       '<button type="button" class="pg-btn pg-btn--primary" id="btn-submit">Submit sign-off</button>' +
@@ -378,74 +626,83 @@
     bindForm();
   }
 
-  function resizeCanvas() {
-    canvas = $("#sig-pad");
-    if (!canvas || !signaturePad) return;
+  function tunePad(pad) {
+    if (/Android|Mobile|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+      pad.off();
+      pad._drawingStroke = false;
+      pad._handleMouseEvents();
+      if ("ontouchstart" in window) pad._handleTouchEvents();
+    }
+  }
 
-    // signature_pad docs: size from offsetWidth/Height, then scale context by DPR
+  function resizePad(canvas, pad) {
+    if (!canvas || !pad) return;
+    const data = pad.toData();
     const ratio = Math.max(window.devicePixelRatio || 1, 1);
-    const width = Math.max(1, Math.floor(canvas.offsetWidth || canvas.parentElement.clientWidth || 300));
-    const height = Math.max(1, Math.floor(canvas.offsetHeight || 200));
-
+    const width = Math.max(1, Math.floor(canvas.offsetWidth || (canvas.parentElement && canvas.parentElement.clientWidth) || 300));
+    const height = Math.max(1, Math.floor(canvas.offsetHeight || 180));
     canvas.width = width * ratio;
     canvas.height = height * ratio;
     canvas.getContext("2d").setTransform(ratio, 0, 0, ratio, 0, 0);
-    signaturePad.clear();
+    pad.clear();
+    if (data && data.length) pad.fromData(data);
+  }
+
+  function resizeAllPads() {
+    Object.keys(pads).forEach(function (id) {
+      resizePad(document.getElementById(id), pads[id]);
+    });
   }
 
   function bindSignature() {
-    canvas = $("#sig-pad");
-    if (!canvas) return;
-
+    pads = {};
     if (typeof window.SignaturePad === "undefined") {
       console.error("SignaturePad library missing");
       return;
     }
 
-    if (signaturePad) {
-      signaturePad.off();
-      signaturePad = null;
-    }
-
-    signaturePad = new window.SignaturePad(canvas, {
-      minWidth: 0.8,
-      maxWidth: 2.6,
-      penColor: "#111111",
-      backgroundColor: "rgb(255, 255, 255)",
-      throttle: 8,
+    document.querySelectorAll(".pg-sig-canvas").forEach(function (canvas) {
+      const pad = new window.SignaturePad(canvas, {
+        minWidth: 0.8,
+        maxWidth: 2.6,
+        penColor: "#111111",
+        backgroundColor: "rgb(255, 255, 255)",
+        throttle: 8,
+      });
+      tunePad(pad);
+      pads[canvas.id] = pad;
+      resizePad(canvas, pad);
     });
 
-    // Android Chrome PointerEvents often mis-map coords when the page is scrolled
-    // (common in portrait). Force classic touch + mouse handlers instead.
-    if (/Android|Mobile|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-      signaturePad.off();
-      signaturePad._drawingStroke = false;
-      signaturePad._handleMouseEvents();
-      if ("ontouchstart" in window) {
-        signaturePad._handleTouchEvents();
-      }
-    }
-
-    resizeCanvas();
-
-    $("#btn-clear-sig").addEventListener("click", function () {
-      if (signaturePad) signaturePad.clear();
+    document.querySelectorAll("[data-clear-sig]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        const pad = pads[btn.getAttribute("data-clear-sig")];
+        if (pad) pad.clear();
+      });
     });
+    const legacyClear = $("#btn-clear-sig");
+    if (legacyClear) {
+      legacyClear.addEventListener("click", function () {
+        if (pads["sig-pad"]) pads["sig-pad"].clear();
+      });
+    }
 
     let resizeTimer = null;
     function scheduleResize() {
       clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(resizeCanvas, 150);
+      resizeTimer = setTimeout(resizeAllPads, 150);
     }
     window.addEventListener("resize", scheduleResize);
     window.addEventListener("orientationchange", function () {
-      setTimeout(resizeCanvas, 300);
+      setTimeout(scheduleResize, 300);
     });
-    if (typeof ResizeObserver !== "undefined" && canvas.parentElement) {
-      new ResizeObserver(scheduleResize).observe(canvas.parentElement);
+    if (typeof ResizeObserver !== "undefined") {
+      document.querySelectorAll(".pg-signoff__pad-wrap").forEach(function (wrap) {
+        new ResizeObserver(scheduleResize).observe(wrap);
+      });
     }
     requestAnimationFrame(function () {
-      requestAnimationFrame(resizeCanvas);
+      requestAnimationFrame(resizeAllPads);
     });
   }
 
@@ -487,9 +744,40 @@
     });
   }
 
+  function gatherStructured() {
+    const data = { fields: {}, lines: {}, signatures: {} };
+    document.querySelectorAll("[data-field]").forEach(function (el) {
+      const name = el.getAttribute("data-field");
+      data.fields[name] = el.type === "checkbox" ? (el.checked ? 1 : 0) : el.value || "";
+    });
+    document.querySelectorAll("[data-lines]").forEach(function (host) {
+      const rows = [];
+      host.querySelectorAll("[data-line]").forEach(function (line) {
+        const row = {};
+        let any = false;
+        line.querySelectorAll("[data-col]").forEach(function (input) {
+          row[input.getAttribute("data-col")] = input.value || "";
+          if (input.value) any = true;
+        });
+        if (any) rows.push(row);
+      });
+      data.lines[host.getAttribute("data-lines")] = rows;
+    });
+    Object.keys(pads).forEach(function (id) {
+      const canvas = document.getElementById(id);
+      const field = canvas && canvas.getAttribute("data-sig");
+      const pad = pads[id];
+      if (!field || !pad || pad.isEmpty()) return;
+      data.signatures[field] = pad.toDataURL("image/png");
+    });
+    return data;
+  }
+
   function gatherPayload() {
+    if (payload && payload.form_type) return gatherStructured();
     const data = {};
-    const signature = signaturePad ? signaturePad.toDataURL("image/png") : "";
+    const pad = pads["sig-pad"];
+    const signature = pad && !pad.isEmpty() ? pad.toDataURL("image/png") : "";
     if (role === "client") {
       data.client_name = ($("#client_name").value || "").trim();
       data.sign_off_comments = $("#sign_off_comments").value || "";
@@ -508,7 +796,25 @@
   }
 
   function validate(data) {
-    if (!signaturePad || signaturePad.isEmpty()) return "Please provide a signature.";
+    if (payload && payload.form_type) {
+      if (!data.fields.technician_name) return "Select the technician.";
+      let missing = "";
+      (payload.sections || []).forEach(function (section) {
+        (section.fields || []).forEach(function (field) {
+          if (!missing && field.required && !data.fields[field.fieldname]) missing = field.label + " is required.";
+        });
+        (section.pads || []).forEach(function (pad) {
+          const signed = !!data.signatures[pad.fieldname];
+          if (!missing && pad.required && !signed) missing = pad.label + " signature is required.";
+          if (!missing && signed && !(data.fields[pad.name_field] || "").trim()) {
+            missing = pad.label + " name is required.";
+          }
+        });
+      });
+      return missing || null;
+    }
+    const pad = pads["sig-pad"];
+    if (!pad || pad.isEmpty()) return "Please provide a signature.";
     if (role === "client" && !data.client_name) return "Please enter your name.";
     if (role === "technician" && !data.technician_name) return "Please select technician name.";
     return null;
