@@ -209,25 +209,36 @@ def _create_tinyurl(long_link: str, job_completion: str, role: str) -> tuple[str
 			_("TinyURL Settings are incomplete. Set Domain and API Key before generating links.")
 		)
 
-	alias = secrets.token_urlsafe(10).replace("-", "").replace("_", "")[:12].lower()
-	# Ensure uniqueness locally
-	while frappe.db.exists("TinyURL", {"alias": alias}):
+	last_error = None
+	for _attempt in range(3):
 		alias = secrets.token_urlsafe(10).replace("-", "").replace("_", "")[:12].lower()
+		while frappe.db.exists("TinyURL", {"alias": alias}):
+			alias = secrets.token_urlsafe(10).replace("-", "").replace("_", "")[:12].lower()
 
-	doc = frappe.get_doc(
-		{
-			"doctype": "TinyURL",
-			"long_link": long_link,
-			"alias": alias,
-			"reference_doctype": "Job Completion",
-			"reference_name": job_completion,
-		}
+		doc = frappe.get_doc(
+			{
+				"doctype": "TinyURL",
+				"long_link": long_link,
+				"alias": alias,
+				"reference_doctype": "Job Completion",
+				"reference_name": job_completion,
+			}
+		)
+		doc.flags.ignore_permissions = True
+		try:
+			doc.insert()
+		except frappe.ValidationError as exc:
+			last_error = exc
+			if "TinyURL" not in str(exc):
+				raise
+			continue
+		if not doc.short_link:
+			frappe.throw(_("TinyURL was created but short_link is empty. Check TinyURL Settings / API."))
+		return doc.name, doc.short_link
+
+	frappe.throw(
+		_("Could not create a short link after 3 attempts. {0}").format(last_error or _("TinyURL rejected the alias."))
 	)
-	doc.flags.ignore_permissions = True
-	doc.insert()
-	if not doc.short_link:
-		frappe.throw(_("TinyURL was created but short_link is empty. Check TinyURL Settings / API."))
-	return doc.name, doc.short_link
 
 
 def _store_short_link_on_job(job_completion: str, kind: str, short_link: str):
